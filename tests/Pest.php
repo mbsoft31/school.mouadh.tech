@@ -11,15 +11,14 @@ use Laravel\Sanctum\Sanctum;
 | Test Case
 |--------------------------------------------------------------------------
 */
-uses(ApiTestCase::class)->in('Feature/Api');
-//uses(TestCase::class)->in('Feature', 'Unit');
+uses(TestCase::class)->in('Feature', 'Unit');
 
 /*
 |--------------------------------------------------------------------------
 | Uses RefreshDatabase for all Feature tests
 |--------------------------------------------------------------------------
 */
-
+uses(RefreshDatabase::class)->in('Feature');
 /*
 |--------------------------------------------------------------------------
 | Expectations

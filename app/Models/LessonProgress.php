@@ -17,12 +17,14 @@ class LessonProgress extends Model
         'completed',
         'completed_at',
         'time_spent_minutes',
+        'id',
     ];
 
     protected $casts = [
+        'user_id' => 'integer',
         'completed' => 'boolean',
-        'completed_at' => 'datetime',
         'time_spent_minutes' => 'integer',
+        'completed_at' => 'datetime',
     ];
 
     public function user(): BelongsTo

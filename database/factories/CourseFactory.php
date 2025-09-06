@@ -59,4 +59,9 @@ class CourseFactory extends Factory
     {
         return $this->state(['status' => 'archived']);
     }
+
+    public function published(): static
+    {
+        return $this->state(['status' => 'published']);
+    }
 }

@@ -213,7 +213,7 @@ describe('Assessment Attempts API', function () {
         $earnedPoints = $this->multipleChoiceQuestion->points; // Only first answer correct
         $expectedPercentage = ($earnedPoints / $totalPoints) * 100;
 
-        expect($response->json('score'))->toBe((float) $earnedPoints)
+        expect((float) $response->json('score'))->toBe((float) $earnedPoints)
             ->and($response->json('max_score'))->toBe((float) $totalPoints)
             ->and($response->json('percentage'))->toBe(round($expectedPercentage, 2));
     });

@@ -21,7 +21,7 @@ return new class extends Migration
             $table->integer('estimated_duration_minutes')->nullable();
             $table->jsonb('standards')->nullable(); // Curriculum standards
             $table->string('author')->nullable();
-            $table->enum('status', ['draft', 'active', 'archived', 'inactive'])->default('draft');
+            $table->enum('status', ['draft', 'active', 'archived', 'published', 'inactive'])->default('draft');
             $table->timestamps();
 
             $table->index(['subject', 'status']);

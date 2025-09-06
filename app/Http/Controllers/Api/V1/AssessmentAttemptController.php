@@ -168,18 +168,18 @@ class AssessmentAttemptController extends Controller
         $attempt->update([
             'status' => 'completed',
             'submitted_at' => now(),
-            'score' => $totalScore,
-            'max_score' => $maxScore,
-            'percentage' => $percentage,
+            'score' => (float)$totalScore,
+            'max_score' => (float)$maxScore,
+            'percentage' => (float)$percentage,
             'answers' => $request->answers,
         ]);
 
         $response = [
             'attempt_id' => $attempt->id,
             'submitted_at' => $attempt->submitted_at->toISOString(),
-            'score' => $totalScore,
-            'max_score' => $maxScore,
-            'percentage' => round($percentage, 2),
+            'score' => (float)$totalScore,
+            'max_score' => (float)$maxScore,
+            'percentage' => round((float)$percentage, 2),
         ];
 
         // Include question results if feedback is enabled

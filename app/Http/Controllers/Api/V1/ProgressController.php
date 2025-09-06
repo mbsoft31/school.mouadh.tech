@@ -47,14 +47,14 @@ class ProgressController extends Controller
         $totalTimeSpent = $lessonProgress->sum('time_spent_minutes');
 
         return response()->json([
-            'course_id' => $course->id,
-            'user_id' => $user->id,
-            'overall_progress_percentage' => round($overallProgress, 2),
+            'course_id' => (string) $course->id,
+            'user_id' => (string) $user->id,
+            'overall_progress_percentage' => round((float) $overallProgress, 2),
             'lessons_completed' => $completedLessons,
             'total_lessons' => $totalLessons,
             'assessments_completed' => $completedAssessments,
             'total_assessments' => $totalAssessments,
-            'average_assessment_score' => $averageScore ? round($averageScore, 2) : null,
+            'average_assessment_score' => $averageScore ? round((float)$averageScore, 2) : null,
             'time_spent_minutes' => $totalTimeSpent,
             'lesson_progress' => $course->lessons->map(fn($lesson) => [
                 'lesson_id' => $lesson->id,
@@ -90,7 +90,7 @@ class ProgressController extends Controller
                 'lesson_id' => $lesson->id,
             ],
             [
-                'id' => Str::uuid(),
+                // 'id' => Str::uuid(),
                 'completed' => true,
                 'completed_at' => now(),
                 'time_spent_minutes' => $request->time_spent_minutes,
