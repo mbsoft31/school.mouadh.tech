@@ -1,0 +1,1170 @@
+openapi: 3.0.0
+info:
+  title: "Interactive Course Platform API"
+  version: "1.0.0"
+  description: "API for managing and delivering course content based on the simplified Tier 1+ schema"
+  contact:
+    name: "Platform API Team"
+    email: "api-support@yourplatform.com"
+
+servers:
+  - url: "/api/v1"
+    description: "API Version 1"
+
+# Security schemes for Laravel Sanctum authentication
+security:
+  - bearerAuth: []
+  - cookieAuth: []
+
+paths:
+  # ===== COURSE MANAGEMENT =====
+  /courses:
+    get:
+      summary: "List All Courses"
+      description: "Retrieves a paginated list of available courses with optional filtering"
+      tags: ["Courses"]
+      parameters:
+        - name: grade_level
+          in: query
+          schema:
+            type: string
+          description: "Filter by grade level"
+        - name: subject
+          in: query
+          schema:
+            type: string
+          description: "Filter by subject"
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+          description: "Page number for pagination"
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+          description: "Items per page"
+      responses:
+        '200':
+          description: "Paginated list of course summaries"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CourseSummary'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      summary: "Create a New Course"
+      description: "Creates a new course package (Teacher/Admin only)"
+      tags: ["Courses"]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CoursePackageInput'
+      responses:
+        '201':
+          description: "Course created successfully"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoursePackage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /courses/{id}:
+    get:
+      summary: "Get Single Course Package"
+      description: "Retrieves complete course data including lessons, assessments, and question bank"
+      tags: ["Courses"]
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+      responses:
+        '200':
+          description: "Complete course package"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoursePackage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      summary: "Update Course Package"
+      description: "Updates an existing course package (Teacher/Admin only)"
+      tags: ["Courses"]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CoursePackageInput'
+      responses:
+        '200':
+          description: "Course updated successfully"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CoursePackage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+    delete:
+      summary: "Delete Course"
+      description: "Soft deletes a course package by setting status to 'archived' (Admin only)"
+      tags: ["Courses"]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+      responses:
+        '200':
+          description: "Course archived successfully"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Course archived successfully"
+                  course:
+                    $ref: '#/components/schemas/CourseSummary'
+                required: [message, course]
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ===== ASSESSMENT INTERACTION =====
+  /courses/{courseId}/assessments/{assessmentId}/start:
+    post:
+      summary: "Start Assessment Attempt"
+      description: |
+        Begins a new assessment attempt for the authenticated student.
+
+        **Important Notes:**
+        - Creates a new attempt record with unique attempt_id
+        - Returns questions WITHOUT answer keys for security
+        - Enforces max_attempts limit if configured
+        - Sets expiration timer if time_limit_minutes > 0
+      tags: ["Assessments"]
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+        - name: assessmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '201':
+          description: "Assessment attempt started"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttemptSession'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /attempts/{attemptId}/submit:
+    post:
+      summary: "Submit Assessment Answers"
+      description: "Submits student answers for auto-grading"
+      tags: ["Assessments"]
+      parameters:
+        - name: attemptId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmissionPayload'
+      responses:
+        '200':
+          description: "Answers submitted and graded"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttemptResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  # ===== PROGRESS TRACKING =====
+  /courses/{courseId}/progress:
+    get:
+      summary: "Get Course Progress"
+      description: "Retrieves the authenticated user's progress through a specific course"
+      tags: ["Progress"]
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+      responses:
+        '200':
+          description: "User's course progress"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseProgress'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /lessons/{lessonId}/complete:
+    post:
+      summary: "Mark Lesson Complete"
+      description: "Records that a student has completed a lesson"
+      tags: ["Progress"]
+      parameters:
+        - name: lessonId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                time_spent_minutes:
+                  type: number
+                  description: "Time spent on lesson in minutes"
+              required: ["time_spent_minutes"]
+      responses:
+        '200':
+          description: "Lesson completion recorded"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Lesson completed successfully"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+# ===== REUSABLE COMPONENTS =====
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "API token authentication"
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: "laravel_session"
+      description: "Session-based authentication for web frontend"
+
+  parameters:
+    CourseId:
+      name: courseId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: "The UUID of the course"
+
+  responses:
+    BadRequest:
+      description: "Bad request - invalid parameters"
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    Unauthorized:
+      description: "Authentication required"
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    Forbidden:
+      description: "Access denied - insufficient permissions"
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    NotFound:
+      description: "Resource not found"
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+    ValidationError:
+      description: "Validation failed"
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationErrorResponse'
+
+  schemas:
+    # ===== CORE SCHEMAS =====
+    CourseSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        subject:
+          type: string
+        grade_levels:
+          type: array
+          items:
+            type: string
+        estimated_duration_minutes:
+          type: number
+        lesson_count:
+          type: integer
+          description: "Number of lessons in course (computed via database aggregation)"
+        assessment_count:
+          type: integer
+          description: "Number of assessments in course (computed via database aggregation)"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - title
+        - subject
+        - grade_levels
+        - lesson_count
+        - assessment_count
+
+    CoursePackage:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        schema_version:
+          type: string
+          example: "2.0.0"
+        title:
+          type: string
+        description:
+          type: string
+        subject:
+          type: string
+        grade_levels:
+          type: array
+          items:
+            type: string
+        estimated_duration_minutes:
+          type: number
+        standards:
+          type: array
+          items:
+            type: string
+          description: "Curriculum standards like Common Core codes"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        author:
+          type: string
+        status:
+          type: string
+          enum: [draft, published, archived]
+        lessons:
+          type: array
+          items:
+            $ref: '#/components/schemas/Lesson'
+        assessments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Assessment'
+        question_bank:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/Question'
+      required:
+        - id
+        - schema_version
+        - title
+        - subject
+        - grade_levels
+        - lessons
+        - assessments
+        - question_bank
+
+    CoursePackageInput:
+      type: object
+      description: "Input schema for creating/updating courses (excludes system-generated fields)"
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 1000
+        subject:
+          type: string
+          minLength: 1
+        grade_levels:
+          type: array
+          items:
+            type: string
+          minItems: 1
+        estimated_duration_minutes:
+          type: number
+          minimum: 1
+        standards:
+          type: array
+          items:
+            type: string
+        status:
+          type: string
+          enum: [draft, published]
+          default: draft
+        lessons:
+          type: array
+          items:
+            $ref: '#/components/schemas/LessonInput'
+        assessments:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssessmentInput'
+        question_bank:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/QuestionInput'
+      required:
+        - title
+        - subject
+        - grade_levels
+        - lessons
+        - assessments
+        - question_bank
+
+    Lesson:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        estimated_duration_minutes:
+          type: number
+        order_index:
+          type: integer
+        content_blocks:
+          type: array
+          items:
+            oneOf:
+              - $ref: '#/components/schemas/ContentBlockMarkdown'
+              - $ref: '#/components/schemas/ContentBlockMedia'
+              - $ref: '#/components/schemas/ContentBlockQuiz'
+            discriminator:
+              propertyName: type
+      required:
+        - id
+        - title
+        - order_index
+        - content_blocks
+
+    LessonInput:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 500
+        estimated_duration_minutes:
+          type: number
+          minimum: 1
+        order_index:
+          type: integer
+          minimum: 1
+        content_blocks:
+          type: array
+          items:
+            oneOf:
+              - $ref: '#/components/schemas/ContentBlockMarkdownInput'
+              - $ref: '#/components/schemas/ContentBlockMediaInput'
+              - $ref: '#/components/schemas/ContentBlockQuizInput'
+            discriminator:
+              propertyName: type
+          minItems: 1
+      required:
+        - title
+        - order_index
+        - content_blocks
+
+    # ===== CONTENT BLOCKS =====
+    ContentBlockMarkdown:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [markdown]
+        content:
+          type: string
+      required:
+        - type
+        - content
+
+    ContentBlockMarkdownInput:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [markdown]
+        content:
+          type: string
+          minLength: 1
+      required:
+        - type
+        - content
+
+    ContentBlockMedia:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [media]
+        url:
+          type: string
+          format: uri
+        media_type:
+          type: string
+          enum: [image, video, audio]
+        alt_text:
+          type: string
+        caption:
+          type: string
+      required:
+        - type
+        - url
+        - media_type
+        - alt_text
+
+    ContentBlockMediaInput:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [media]
+        url:
+          type: string
+          format: uri
+        media_type:
+          type: string
+          enum: [image, video, audio]
+        alt_text:
+          type: string
+          minLength: 1
+        caption:
+          type: string
+      required:
+        - type
+        - url
+        - media_type
+        - alt_text
+
+    ContentBlockQuiz:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [quiz]
+        assessment_id:
+          type: string
+          format: uuid
+      required:
+        - type
+        - assessment_id
+
+    ContentBlockQuizInput:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [quiz]
+        assessment_id:
+          type: string
+          format: uuid
+      required:
+        - type
+        - assessment_id
+
+    # ===== ASSESSMENTS =====
+    Assessment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        type:
+          type: string
+          enum: [formative, summative]
+        time_limit_minutes:
+          type: number
+          description: "0 means unlimited time"
+        max_attempts:
+          type: integer
+          description: "-1 means unlimited attempts"
+        show_feedback_immediately:
+          type: boolean
+        question_ids:
+          type: array
+          items:
+            type: string
+      required:
+        - id
+        - title
+        - type
+        - question_ids
+
+    AssessmentInput:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 500
+        type:
+          type: string
+          enum: [formative, summative]
+        time_limit_minutes:
+          type: number
+          minimum: 0
+          default: 0
+        max_attempts:
+          type: integer
+          minimum: -1
+          default: -1
+        show_feedback_immediately:
+          type: boolean
+          default: true
+        question_ids:
+          type: array
+          items:
+            type: string
+          minItems: 1
+      required:
+        - title
+        - type
+        - question_ids
+
+    # ===== QUESTIONS =====
+    Question:
+      type: object
+      discriminator:
+        propertyName: type
+      properties:
+        type:
+          type: string
+          enum: [multiple_choice, numeric_input]
+        stem:
+          type: string
+        concept_tags:
+          type: array
+          items:
+            type: string
+        difficulty_level:
+          type: integer
+          minimum: 1
+          maximum: 5
+        points:
+          type: number
+          minimum: 0
+      required:
+        - type
+        - stem
+        - concept_tags
+        - points
+      oneOf:
+        - $ref: '#/components/schemas/MultipleChoiceQuestion'
+        - $ref: '#/components/schemas/NumericInputQuestion'
+
+    QuestionInput:
+      type: object
+      discriminator:
+        propertyName: type
+      properties:
+        type:
+          type: string
+          enum: [multiple_choice, numeric_input]
+        stem:
+          type: string
+          minLength: 1
+        concept_tags:
+          type: array
+          items:
+            type: string
+          minItems: 1
+        difficulty_level:
+          type: integer
+          minimum: 1
+          maximum: 5
+          default: 3
+        points:
+          type: number
+          minimum: 0
+          default: 5
+      required:
+        - type
+        - stem
+        - concept_tags
+        - points
+      oneOf:
+        - $ref: '#/components/schemas/MultipleChoiceQuestionInput'
+        - $ref: '#/components/schemas/NumericInputQuestionInput'
+
+    MultipleChoiceQuestion:
+      allOf:
+        - $ref: '#/components/schemas/Question'
+        - type: object
+          properties:
+            choices:
+              type: array
+              items:
+                $ref: '#/components/schemas/Choice'
+              minItems: 2
+              maxItems: 6
+          required:
+            - choices
+
+    MultipleChoiceQuestionInput:
+      allOf:
+        - $ref: '#/components/schemas/QuestionInput'
+        - type: object
+          properties:
+            choices:
+              type: array
+              items:
+                $ref: '#/components/schemas/ChoiceInput'
+              minItems: 2
+              maxItems: 6
+          required:
+            - choices
+
+    NumericInputQuestion:
+      allOf:
+        - $ref: '#/components/schemas/Question'
+        - type: object
+          properties:
+            answer:
+              $ref: '#/components/schemas/NumericAnswer'
+            solution_explanation:
+              type: string
+          required:
+            - answer
+
+    NumericInputQuestionInput:
+      allOf:
+        - $ref: '#/components/schemas/QuestionInput'
+        - type: object
+          properties:
+            answer:
+              $ref: '#/components/schemas/NumericAnswerInput'
+            solution_explanation:
+              type: string
+          required:
+            - answer
+
+    Choice:
+      type: object
+      properties:
+        text:
+          type: string
+        is_correct:
+          type: boolean
+        feedback:
+          type: string
+      required:
+        - text
+        - is_correct
+        - feedback
+
+    ChoiceInput:
+      type: object
+      properties:
+        text:
+          type: string
+          minLength: 1
+        is_correct:
+          type: boolean
+        feedback:
+          type: string
+          minLength: 1
+      required:
+        - text
+        - is_correct
+        - feedback
+
+    NumericAnswer:
+      type: object
+      properties:
+        expected_value:
+          type: number
+        tolerance:
+          type: number
+          minimum: 0
+        units:
+          type: string
+      required:
+        - expected_value
+        - tolerance
+
+    NumericAnswerInput:
+      type: object
+      properties:
+        expected_value:
+          type: number
+        tolerance:
+          type: number
+          minimum: 0
+          default: 0
+        units:
+          type: string
+      required:
+        - expected_value
+        - tolerance
+
+    # ===== ASSESSMENT INTERACTION =====
+    AttemptSession:
+      type: object
+      properties:
+        attempt_id:
+          type: string
+          format: uuid
+        assessment_id:
+          type: string
+          format: uuid
+        started_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: "Null if no time limit"
+        questions:
+          type: array
+          items:
+            $ref: '#/components/schemas/QuestionForAttempt'
+          description: "Questions in the order they should be presented"
+
+    QuestionForAttempt:
+      type: object
+      properties:
+        question_id:
+          type: string
+        type:
+          type: string
+          enum: [multiple_choice, numeric_input]
+        stem:
+          type: string
+        choices:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              text:
+                type: string
+            required: [id, text]
+          description: "Only present for multiple_choice questions, without correct answers"
+        points:
+          type: number
+      required:
+        - question_id
+        - type
+        - stem
+        - points
+
+    SubmissionPayload:
+      type: object
+      properties:
+        answers:
+          type: array
+          items:
+            type: object
+            properties:
+              question_id:
+                type: string
+                description: "The ID of the question being answered"
+              answer:
+                oneOf:
+                  - type: string
+                    description: "Choice ID for multiple choice questions"
+                  - type: number
+                    description: "Numeric value for numeric input questions"
+            required: [question_id, answer]
+          minItems: 1
+          description: "Array of question answers submitted by the student"
+      required: [answers]
+      example:
+        answers:
+          - question_id: "q_identify_001"
+            answer: "choice_a"
+          - question_id: "q_solve_001"
+            answer: 5.0
+
+    AttemptResult:
+      type: object
+      properties:
+        attempt_id:
+          type: string
+          format: uuid
+        submitted_at:
+          type: string
+          format: date-time
+        score:
+          type: number
+          description: "Total points earned"
+        max_score:
+          type: number
+          description: "Maximum possible points"
+        percentage:
+          type: number
+          description: "Score as percentage (0-100)"
+        question_results:
+          type: array
+          items:
+            $ref: '#/components/schemas/QuestionResult'
+          description: "Results for each question, only if feedback enabled"
+
+    QuestionResult:
+      type: object
+      properties:
+        question_id:
+          type: string
+        student_answer:
+          oneOf:
+            - type: string
+            - type: number
+        is_correct:
+          type: boolean
+        points_earned:
+          type: number
+        points_possible:
+          type: number
+        feedback:
+          type: string
+          description: "Specific feedback for the student's answer"
+
+    # ===== PROGRESS TRACKING =====
+    CourseProgress:
+      type: object
+      properties:
+        course_id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        overall_progress_percentage:
+          type: number
+          description: "Overall completion percentage (0-100)"
+        lessons_completed:
+          type: integer
+        total_lessons:
+          type: integer
+        assessments_completed:
+          type: integer
+        total_assessments:
+          type: integer
+        average_assessment_score:
+          type: number
+          nullable: true
+          description: "Average score across completed assessments"
+        time_spent_minutes:
+          type: number
+          description: "Total time spent in course"
+        lesson_progress:
+          type: array
+          items:
+            $ref: '#/components/schemas/LessonProgress'
+        assessment_progress:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssessmentProgress'
+
+    LessonProgress:
+      type: object
+      properties:
+        lesson_id:
+          type: string
+          format: uuid
+        completed:
+          type: boolean
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        time_spent_minutes:
+          type: number
+
+    AssessmentProgress:
+      type: object
+      properties:
+        assessment_id:
+          type: string
+          format: uuid
+        attempts:
+          type: integer
+          description: "Number of attempts made"
+        best_score:
+          type: number
+          nullable: true
+          description: "Highest score achieved"
+        latest_attempt_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    # ===== PAGINATION & ERRORS =====
+    PaginationMeta:
+      type: object
+      properties:
+        current_page:
+          type: integer
+        last_page:
+          type: integer
+        per_page:
+          type: integer
+        total:
+          type: integer
+        from:
+          type: integer
+          nullable: true
+        to:
+          type: integer
+          nullable: true
+
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        error_code:
+          type: string
+          description: "Machine-readable error code"
+      required:
+        - message
+
+    ValidationErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: "The given data was invalid."
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          example:
+            title: ["The title field is required."]
+            "answers.0.answer": ["The answer field is required."]
+        error_code:
+          type: string
+          example: "VALIDATION_FAILED"
+          description: "Machine-readable error code for client handling"
+      required:
+        - message
+        - errors
+
+tags:
+  - name: "Courses"
+    description: "Course package management"
+  - name: "Assessments"
+    description: "Assessment taking and grading"
+  - name: "Progress"
+    description: "Student progress tracking"
