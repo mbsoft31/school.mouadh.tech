@@ -1,0 +1,97 @@
+*** Begin Patch
+*** Add File: .github/workflows/tests.yml
++name: tests
++
++on:
++  push:
++    branches: [ main, '**' ]
++  pull_request:
++    branches: [ main ]
++
++jobs:
++  pest:
++    runs-on: ubuntu-latest
++
++    services:
++      redis:
++        image: redis:7-alpine
++        ports: ["6379:6379"]
++        options: >-
++          --health-cmd "redis-cli ping || exit 1" 
++          --health-interval 5s 
++          --health-timeout 5s 
++          --health-retries 20
++
++    env:
++      APP_ENV: testing
++      APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
++      APP_DEBUG: true
++      LOG_CHANNEL: stack
++      CACHE_DRIVER: array
++      QUEUE_CONNECTION: sync
++      SESSION_DRIVER: array
++      MAIL_MAILER: log
++      FILESYSTEM_DISK: local
++      DB_CONNECTION: sqlite
++      DB_DATABASE: ${{ github.workspace }}/database/database.testing.sqlite
++
++    steps:
++      - name: Checkout
++        uses: actions/checkout@v4
++
++      - name: Setup PHP
++        uses: shivammathur/setup-php@v2
++        with:
++          php-version: '8.3'
++          extensions: sqlite, pdo_sqlite, mbstring, intl, bcmath, pcntl
++          coverage: none
++          tools: composer:v2
++
++      - name: Cache Composer
++        uses: actions/cache@v4
++        with:
++          path: |
++            ~/.cache/composer/files
++            ~/.cache/composer/repo
++            vendor
++          key: composer-${{ runner.os }}-${{ hashFiles('**/composer.lock') }}
++
++      - name: Install Composer deps
++        run: composer install --no-interaction --prefer-dist --optimize-autoloader
++
++      - name: Prepare test environment
++        run: |
++          cp .env.example .env || true
++          php artisan key:generate --force
++          mkdir -p database
++          touch database/database.testing.sqlite
++          php artisan config:clear
++          php artisan cache:clear
++
++      - name: Run migrations (testing)
++        run: php artisan migrate --force --env=testing
++
++      - name: Run Pest
++        run: |
++          if [ -f vendor/bin/pest ]; then
++            vendor/bin/pest -d --colors=always
++          else
++            php artisan test --colors=always
++          fi
+*** End Patch
+*** Begin Patch
+*** Add File: .env.testing
++APP_ENV=testing
++APP_DEBUG=true
++APP_KEY=
++LOG_CHANNEL=stack
++
++CACHE_DRIVER=array
++QUEUE_CONNECTION=sync
++SESSION_DRIVER=array
++MAIL_MAILER=log
++FILESYSTEM_DISK=local
++
++DB_CONNECTION=sqlite
++DB_DATABASE=${PWD}/database/database.testing.sqlite
+*** End Patch

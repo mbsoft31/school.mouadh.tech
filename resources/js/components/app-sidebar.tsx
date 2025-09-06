@@ -7,6 +7,8 @@ import { type NavItem } from '@/types';
 import { Link } from '@inertiajs/react';
 import { BookOpen, Folder, LayoutGrid } from 'lucide-react';
 import AppLogo from './app-logo';
+import { index } from '@/routes/courses';
+
 
 const mainNavItems: NavItem[] = [
     {
@@ -14,6 +16,11 @@ const mainNavItems: NavItem[] = [
         href: dashboard(),
         icon: LayoutGrid,
     },
+    {
+        title: "Courses",
+        href: index(),
+        icon: BookOpen,
+    }
 ];
 
 const footerNavItems: NavItem[] = [
